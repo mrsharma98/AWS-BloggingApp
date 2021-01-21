@@ -4,6 +4,16 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+import Amplify from 'aws-amplify'
+import aws_exports from './aws-exports'
+
+
+Amplify.configure(aws_exports)
+// getting and configuring aws_exports
+// so that all of that backend operations gets abstracted out for us,
+// so now get can just focus on user interface
+
+
 ReactDOM.render(
   <React.StrictMode>
     <App />
