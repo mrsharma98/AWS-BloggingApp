@@ -4,6 +4,7 @@ import { API, graphqlOperation } from 'aws-amplify'
 
 import DeletePost from './DeletePost'
 import EditPost from "./EditPost";
+import { onCreatePost } from '../graphql/subscriptions';
 
 class DisplayPosts extends Component {
     state = {
@@ -12,6 +13,27 @@ class DisplayPosts extends Component {
 
     componentDidMount = async () => {
         this.getPosts()
+
+        // Subscription (to render the post w/o manual reload)
+        this.createPostListener = API.graphql(graphqlOperation(onCreatePost))
+            .subscribe({ 
+                next: postData => {
+                    // next -- what happens next
+                    // postData -- will have our new post
+                    const newPost = postData.value.data.onCreatePost
+                    const prevPosts = this.state.posts.filter(post => post.id !== newPost.id)
+
+                    const updatedPosts = [newPost, ...prevPosts]
+
+                    this.setState({ posts: updatedPosts })
+                }
+             })
+    }
+
+    componentWillUnmount() {
+        // we need to Unmount our Subscription/unsubscribing or else it will keep on getting the post
+        // that will be costly
+        this.createPostListener.unsubscribe()
     }
 
     getPosts = async () => {
