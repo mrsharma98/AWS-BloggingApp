@@ -8,12 +8,15 @@ import EditPost from "./EditPost";
 import { onCreateComment, onCreateLike, onCreatePost, onDeletePost, onUpdatePost } from '../graphql/subscriptions';
 import CreateCommentPost from './CreateCommentPost';
 import CommentPost from './CommentPost';
+import { createLike } from '../graphql/mutations'
 
 
 class DisplayPosts extends Component {
     state = {
         ownerId: "",
         ownerUsername: "",
+        errorMessage: "",
+        postLikedBy: [],
         isHovering: false,
         posts: []
     }
@@ -33,7 +36,7 @@ class DisplayPosts extends Component {
 
         // Subscription (to render the post w/o manual reload)
         this.createPostListener = API.graphql(graphqlOperation(onCreatePost))
-            .subscribe({ 
+            .subscribe({
                 next: postData => {
                     // next -- what happens next
                     // postData -- will have our new post
@@ -46,66 +49,66 @@ class DisplayPosts extends Component {
 
                     this.setState({ posts: updatedPosts })
                 }
-             })
+            })
 
         this.DeletePostListener = API.graphql(graphqlOperation(onDeletePost))
-             .subscribe({
-                 next: postData => {
-                     const deletedPost = postData.value.data.onDeletePost
-                     const updatedPosts = this.state.posts.filter(post => post.id !== deletedPost.id)
+            .subscribe({
+                next: postData => {
+                    const deletedPost = postData.value.data.onDeletePost
+                    const updatedPosts = this.state.posts.filter(post => post.id !== deletedPost.id)
 
-                     this.setState({ posts: updatedPosts })
-                 }
-             })
+                    this.setState({ posts: updatedPosts })
+                }
+            })
 
-             
+
         this.UpdatePostListener = API.graphql(graphqlOperation(onUpdatePost))
-             .subscribe({
-                 next: postData => {
-                     const { posts } = this.state
-                     const updatePost = postData.value.data.onUpdatePost
+            .subscribe({
+                next: postData => {
+                    const { posts } = this.state
+                    const updatePost = postData.value.data.onUpdatePost
 
-                     const index = posts.findIndex(post => post.id === updatePost.id)
+                    const index = posts.findIndex(post => post.id === updatePost.id)
 
-                     const updatedPosts = [ ...posts.slice(0, index), updatePost, ...posts.slice(index+1)]
+                    const updatedPosts = [...posts.slice(0, index), updatePost, ...posts.slice(index + 1)]
 
-                     this.setState({ posts: updatedPosts })
-                 }
-             })
+                    this.setState({ posts: updatedPosts })
+                }
+            })
 
-            
+
         this.createPostCommentListener = API.graphql(graphqlOperation(onCreateComment))
-             .subscribe({
-                 next: commentData => {
-                     const createdComment = commentData.value.data.onCreateComment
-                     let posts = [ ...this.state.posts ]
+            .subscribe({
+                next: commentData => {
+                    const createdComment = commentData.value.data.onCreateComment
+                    let posts = [...this.state.posts]
 
-                     for (let post of posts) {
-                         if (createdComment.post.id === post.id) {
-                             post.comments.items.push(createdComment)
-                         }
-                     }
+                    for (let post of posts) {
+                        if (createdComment.post.id === post.id) {
+                            post.comments.items.push(createdComment)
+                        }
+                    }
 
-                     this.setState({ posts })
-                 }
-             })
+                    this.setState({ posts })
+                }
+            })
 
 
         this.createPostLikeListener = API.graphql(graphqlOperation(onCreateLike))
-             .subscribe({
-                 next: postData => {
-                     const createdLike = postData.value.data.onCreateLike
-                     let posts = [...this.state.posts]
+            .subscribe({
+                next: postData => {
+                    const createdLike = postData.value.data.onCreateLike
+                    let posts = [...this.state.posts]
 
-                     for (let post of posts) {
-                         if (createdLike.post.id === post.id) {
-                             post.likes.items.push(createdLike)
-                         }
-                     }
+                    for (let post of posts) {
+                        if (createdLike.post.id === post.id) {
+                            post.likes.items.push(createdLike)
+                        }
+                    }
 
-                     this.setState({ posts })
-                 }
-             })
+                    this.setState({ posts })
+                }
+            })
     }
 
     componentWillUnmount() {
@@ -126,9 +129,9 @@ class DisplayPosts extends Component {
         const result = await API.graphql(graphqlOperation(listPosts))
         // graphqlOperation(query)
         // console.log(result.data.listPosts.items);
-        
+
         this.setState({ posts: result.data.listPosts.items })
-    
+
     }
 
     // for checking if the person has liked the post or not.
@@ -148,37 +151,82 @@ class DisplayPosts extends Component {
         return false
     }
 
+
+    handleLike = async postId => {
+        if (this.likedPost(postId)) return this.setState({ errorMessage: "Can't like your own post." }); else {
+            const input = {
+                numberLikes: 1,
+                likeOwnerId: this.state.ownerId,
+                likeOwnerUsername: this.state.ownerUsername,
+                likePostId: postId
+            }
+    
+            try {
+                const result = await API.graphql(graphqlOperation(createLike, { input }))
+    
+                console.log("Liked: ", result.data);
+    
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        
+    }
+
+
     render() {
         const { posts } = this.state
-        
+
+        let loggedInUser = this.state.ownerId
+
         return posts.map(post => {
             return (
                 <div key={post.id} className="posts" style={rowStyle}>
-                    <h1>{ post.postTitle }</h1>
+                    <h1>{post.postTitle}</h1>
                     <span style={{ fontStyle: "italic", color: "#0ca5e297" }}>
-                        { "Wrote by: "} { post.postOwnerUsername }
+                        {"Wrote by: "} {post.postOwnerUsername}
                         {" on "}
                         <time style={{ fontStyle: "italic" }}>
                             {" "}
-                            { new Date(post.createdAt).toDateString() }
+                            {new Date(post.createdAt).toDateString()}
                         </time>
                     </span>
 
                     <p>
-                        { post.postBody }
+                        {post.postBody}
                     </p>
 
                     <br />
                     <span>
-                        <DeletePost data={post} />
-                        <EditPost { ...post } />
+                        {post.postOwnerId === loggedInUser
+                            && <DeletePost data={post} />
+                        }
+
+                        {post.postOwnerId === loggedInUser
+                            && <EditPost {...post} />
+                        }
+
+
+
+
+                        <span>
+                            <p className="alert">
+                                {post.postOwnerId === loggedInUser
+                                 && this.state.errorMessage
+                                }
+                            </p>
+                            <p onClick={() => this.handleLike(post.id)}>
+                                <FaThumbsUp />
+                                {post.likes.items.length}
+                            </p>
+                        </span>
                     </span>
 
                     <span>
                         <CreateCommentPost postId={post.id} />
-                        { post.comments.items.length > 0
+                        {post.comments.items.length > 0
                             ? (
-                                <span style={{ fontSize: '19px', color:"gray" }}>
+                                <span style={{ fontSize: '19px', color: "gray" }}>
                                     Comments:
                                     {
                                         post.comments.items.map((comment, index) => {
