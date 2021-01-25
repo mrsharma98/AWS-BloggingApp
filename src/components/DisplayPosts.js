@@ -1,18 +1,35 @@
 import React, { Component } from 'react'
 import { listPosts } from '../graphql/queries'
-import { API, graphqlOperation } from 'aws-amplify'
+import { Auth, API, graphqlOperation } from 'aws-amplify'
+import { FaThumbsUp } from 'react-icons/fa'
 
 import DeletePost from './DeletePost'
 import EditPost from "./EditPost";
-import { onCreatePost, onDeletePost } from '../graphql/subscriptions';
+import { onCreateComment, onCreateLike, onCreatePost, onDeletePost, onUpdatePost } from '../graphql/subscriptions';
+import CreateCommentPost from './CreateCommentPost';
+import CommentPost from './CommentPost';
+
 
 class DisplayPosts extends Component {
     state = {
+        ownerId: "",
+        ownerUsername: "",
+        isHovering: false,
         posts: []
     }
 
     componentDidMount = async () => {
+
         this.getPosts()
+
+        await Auth.currentUserInfo()
+            .then(user => {
+                this.setState({
+                    ownerId: user.attributes.sub,
+                    ownerUsername: user.username
+                })
+            })
+
 
         // Subscription (to render the post w/o manual reload)
         this.createPostListener = API.graphql(graphqlOperation(onCreatePost))
@@ -40,6 +57,55 @@ class DisplayPosts extends Component {
                      this.setState({ posts: updatedPosts })
                  }
              })
+
+             
+        this.UpdatePostListener = API.graphql(graphqlOperation(onUpdatePost))
+             .subscribe({
+                 next: postData => {
+                     const { posts } = this.state
+                     const updatePost = postData.value.data.onUpdatePost
+
+                     const index = posts.findIndex(post => post.id === updatePost.id)
+
+                     const updatedPosts = [ ...posts.slice(0, index), updatePost, ...posts.slice(index+1)]
+
+                     this.setState({ posts: updatedPosts })
+                 }
+             })
+
+            
+        this.createPostCommentListener = API.graphql(graphqlOperation(onCreateComment))
+             .subscribe({
+                 next: commentData => {
+                     const createdComment = commentData.value.data.onCreateComment
+                     let posts = [ ...this.state.posts ]
+
+                     for (let post of posts) {
+                         if (createdComment.post.id === post.id) {
+                             post.comments.items.push(createdComment)
+                         }
+                     }
+
+                     this.setState({ posts })
+                 }
+             })
+
+
+        this.createPostLikeListener = API.graphql(graphqlOperation(onCreateLike))
+             .subscribe({
+                 next: postData => {
+                     const createdLike = postData.value.data.onCreateLike
+                     let posts = [...this.state.posts]
+
+                     for (let post of posts) {
+                         if (createdLike.post.id === post.id) {
+                             post.likes.items.push(createdLike)
+                         }
+                     }
+
+                     this.setState({ posts })
+                 }
+             })
     }
 
     componentWillUnmount() {
@@ -48,6 +114,12 @@ class DisplayPosts extends Component {
         this.createPostListener.unsubscribe()
 
         this.DeletePostListener.unsubscribe()
+
+        this.UpdatePostListener.unsubscribe()
+
+        this.createPostCommentListener.unsubscribe()
+
+        this.createPostLikeListener.unsubscribe()
     }
 
     getPosts = async () => {
@@ -57,6 +129,23 @@ class DisplayPosts extends Component {
         
         this.setState({ posts: result.data.listPosts.items })
     
+    }
+
+    // for checking if the person has liked the post or not.
+    likedPost = (postId) => {
+
+        for (let post of this.state.posts) {
+            if (post.id === postId) {
+                if (post.postOwnerId === this.state.ownerId) return true
+                for (let like of post.likes.items) {
+                    if (like.likeOwnerId === this.state.ownerId) {
+                        return true
+                    }
+                }
+            }
+        }
+
+        return false
     }
 
     render() {
@@ -82,7 +171,23 @@ class DisplayPosts extends Component {
                     <br />
                     <span>
                         <DeletePost data={post} />
-                        <EditPost />
+                        <EditPost { ...post } />
+                    </span>
+
+                    <span>
+                        <CreateCommentPost postId={post.id} />
+                        { post.comments.items.length > 0
+                            ? (
+                                <span style={{ fontSize: '19px', color:"gray" }}>
+                                    Comments:
+                                    {
+                                        post.comments.items.map((comment, index) => {
+                                            return <CommentPost key={index} commentData={comment} />
+                                        })
+                                    }
+                                </span>
+                            ) : null
+                        }
                     </span>
 
                 </div>
