@@ -1,7 +1,7 @@
 import React, { Component } from 'react'
 import { listPosts } from '../graphql/queries'
 import { Auth, API, graphqlOperation } from 'aws-amplify'
-import { FaThumbsUp } from 'react-icons/fa'
+import { FaSadTear, FaThumbsUp } from 'react-icons/fa'
 
 import DeletePost from './DeletePost'
 import EditPost from "./EditPost";
@@ -9,6 +9,7 @@ import { onCreateComment, onCreateLike, onCreatePost, onDeletePost, onUpdatePost
 import CreateCommentPost from './CreateCommentPost';
 import CommentPost from './CommentPost';
 import { createLike } from '../graphql/mutations'
+import UsersWhoLikedPost from './UsersWhoLikedPost'
 
 
 class DisplayPosts extends Component {
@@ -169,8 +170,31 @@ class DisplayPosts extends Component {
             } catch (error) {
                 console.error(error);
             }
+        }   
+    }
+
+
+    handleMouseHover = async postId => {
+        this.setState({ isHovering: !this.state.isHovering })
+
+        let innerLikes = this.state.postLikedBy
+
+        for (let post of this.state.posts) {
+            if (post.id === postId) {
+                for (let like of post.likes.items) {
+                    innerLikes.push(like.likeOwnerUsername)
+                }
+            }
+
+            this.setState({ postLikedBy: innerLikes })
         }
-        
+
+        // console.log("Post liked by: ", this.state.postLikedBy);
+    }
+
+    handleMouseHoverLeave = async () => {
+        this.setState({ isHovering: !this.state.isHovering })
+        this.setState({ postLikedBy: [] })
     }
 
 
@@ -215,10 +239,24 @@ class DisplayPosts extends Component {
                                  && this.state.errorMessage
                                 }
                             </p>
-                            <p onClick={() => this.handleLike(post.id)}>
+                            <p onMouseEnter={() => this.handleMouseHover(post.id)}
+                                onMouseLeave={() => this.handleMouseHoverLeave()}
+                                onClick={() => this.handleLike(post.id)}
+                                style={{color: (post.likes.items.length > 0) ? "blue": "grey"}}
+                                className="like-button">
                                 <FaThumbsUp />
                                 {post.likes.items.length}
                             </p>
+                            {
+                                this.state.isHovering &&
+                                <div className="users-liked">
+                                    {
+                                        this.state.postLikedBy.length === 0
+                                            ? "Liked by no one" : "Liked by; "
+                                    }
+                                    {this.state.postLikedBy.length === 0 ? <FaSadTear /> : <UsersWhoLikedPost data={this.state.postLikedBy} />}
+                                </div>
+                            }
                         </span>
                     </span>
 
